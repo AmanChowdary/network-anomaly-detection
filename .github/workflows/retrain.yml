@@ -1,0 +1,39 @@
+name: Weekly Model Retraining
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"   # Every Sunday at 3 AM
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Generate fresh data
+        run: python data/generate_data.py
+      - name: Retrain model
+        run: python model/train.py
+      - name: Validate model performance
+        run: |
+          python -c "
+          import json
+          with open('model/artifacts/metrics.json') as f:
+              m = json.load(f)
+          f1 = m.get('f1', 0)
+          print(f'F1: {f1:.4f}')
+          assert f1 >= 0.85, f'F1 {f1:.4f} below threshold 0.85'
+          print('Model quality check passed.')
+          "
+      - name: Run test suite
+        run: pytest tests/ -v
+      - name: Commit updated model metrics
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: weekly model retrain [skip ci]"
+          file_pattern: "model/artifacts/metrics.json"
