@@ -24,7 +24,8 @@ except ImportError:
 try:
     import mlflow, mlflow.xgboost
     MLFLOW_AVAILABLE = True
-    mlflow.set_tracking_uri("mlruns")
+    _mlflow_db = os.path.abspath('mlruns/mlflow_tracking.db')
+    mlflow.set_tracking_uri(f"sqlite:///{_mlflow_db}")
 except ImportError:
     MLFLOW_AVAILABLE = False
 
@@ -105,14 +106,17 @@ def train(data_path="data/network_traffic.csv", model_dir="model/artifacts"):
 
     # MLflow
     if MLFLOW_AVAILABLE:
-        mlflow.set_experiment("network_anomaly_detection")
-        with mlflow.start_run():
-            mlflow.log_params(gs.best_params_)
-            mlflow.log_metrics({k: v for k, v in metrics.items()
-                                 if isinstance(v, (int, float))})
-            mlflow.xgboost.log_model(model, "model")
-            mlflow.log_artifact(f"{model_dir}/metrics.json")
-            print("  ✓ Logged to MLflow")
+        try:
+            mlflow.set_experiment("network_anomaly_detection")
+            with mlflow.start_run():
+                mlflow.log_params(gs.best_params_)
+                mlflow.log_metrics({k: v for k, v in metrics.items()
+                                     if isinstance(v, (int, float))})
+                mlflow.xgboost.log_model(model, "model")
+                mlflow.log_artifact(f"{model_dir}/metrics.json")
+                print("  ✓ Logged to MLflow")
+        except Exception as e:
+            print(f"  ⚠ MLflow tracking skipped ({type(e).__name__}: {e})")
 
     print(f"\n  ✓ Model saved → {model_dir}/")
     return model, metrics
