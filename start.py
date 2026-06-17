@@ -1,6 +1,7 @@
 """
 Render.com startup script.
 Generates data + trains model if artifacts are missing, then starts the API.
+Tuned for Render free tier (512 MB RAM).
 """
 import os, subprocess, sys
 
@@ -10,15 +11,17 @@ def run(cmd):
     if result.returncode != 0:
         sys.exit(result.returncode)
 
-# Step 1: Generate data if missing
+# Step 1: Generate data (8K rows — SMOTE + GridSearchCV fits in 512 MB)
 if not os.path.exists("data/network_traffic.csv"):
-    print("Generating dataset...")
+    print("Generating dataset (8K rows for free tier)...")
     os.makedirs("data", exist_ok=True)
-    run("python -c \"from data.generate_data import generate_network_data; generate_network_data(n=50000).to_csv('data/network_traffic.csv', index=False)\"")
+    run("python -c \"from data.generate_data import generate_network_data; generate_network_data(n=8000).to_csv('data/network_traffic.csv', index=False)\"")
 
 # Step 2: Train model if artifacts missing
 if not os.path.exists("model/artifacts/anomaly_model.joblib"):
-    print("Training model (first deploy — this takes ~90s)...")
+    print("Training model (~45s on free tier)...")
+    # Use lighter hyperparameter grid for free tier
+    os.environ["RENDER_FREE_TIER"] = "1"
     run("python model/train.py")
 
 # Step 3: Start API

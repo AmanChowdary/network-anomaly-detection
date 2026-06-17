@@ -54,16 +54,26 @@ def train(data_path="data/network_traffic.csv", model_dir="model/artifacts"):
         print("  ⚠ imbalanced-learn not installed — skipping SMOTE (install with: pip install imbalanced-learn)")
 
     # Hyperparameter tuning via GridSearchCV
-    print("\nRunning GridSearchCV (3-fold)...")
-    param_grid = {
-        "n_estimators": [100, 200],
-        "max_depth": [4, 6],
-        "learning_rate": [0.05, 0.1],
-    }
+    # Use lighter grid on free-tier deployments (RENDER_FREE_TIER=1)
+    free_tier = os.getenv("RENDER_FREE_TIER") == "1"
+    if free_tier:
+        print("\nRunning GridSearchCV (light grid for free tier)...")
+        param_grid = {
+            "n_estimators": [100],
+            "max_depth": [4],
+            "learning_rate": [0.1],
+        }
+    else:
+        print("\nRunning GridSearchCV (3-fold)...")
+        param_grid = {
+            "n_estimators": [100, 200],
+            "max_depth": [4, 6],
+            "learning_rate": [0.05, 0.1],
+        }
     base = xgb.XGBClassifier(use_label_encoder=False, eval_metric="auc",
-                               random_state=42, n_jobs=-1)
+                               random_state=42, n_jobs=1 if free_tier else -1)
     cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
-    gs = GridSearchCV(base, param_grid, cv=cv, scoring="f1", n_jobs=-1, verbose=1)
+    gs = GridSearchCV(base, param_grid, cv=cv, scoring="f1", n_jobs=1 if free_tier else -1, verbose=1)
     gs.fit(X_train, y_train)
     print(f"  Best params: {gs.best_params_}")
     print(f"  Best CV F1:  {gs.best_score_:.4f}")
